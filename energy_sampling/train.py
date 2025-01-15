@@ -31,8 +31,8 @@ parser.add_argument('--T', type=int, default=100)
 parser.add_argument('--subtb_lambda', type=int, default=2)
 parser.add_argument('--t_scale', type=float, default=5.)
 parser.add_argument('--log_var_range', type=float, default=4.)
-parser.add_argument('--energy', type=str, default='9gmm',
-                    choices=('9gmm', '25gmm', 'hard_funnel', 'easy_funnel', 'many_well'))
+parser.add_argument('--energy', type=str, default='control2d',
+                    choices=('9gmm', '25gmm', 'hard_funnel', 'easy_funnel', 'many_well', 'control2d'))
 parser.add_argument('--mode_fwd', type=str, default="tb", choices=('tb', 'tb-avg', 'db', 'subtb', "pis"))
 parser.add_argument('--mode_bwd', type=str, default="tb", choices=('tb', 'tb-avg', 'mle'))
 parser.add_argument('--both_ways', action='store_true', default=False)
@@ -130,6 +130,8 @@ def get_energy():
         energy = EasyFunnel(device=device)
     elif args.energy == 'many_well':
         energy = ManyWell(device=device)
+    elif args.energy == 'control2d':
+        energy = Control2D(device=device)
     return energy
 
 
@@ -159,6 +161,9 @@ def plot_step(energy, gfn_model, name):
 
     elif energy.data_ndim != 2:
         return {}
+
+    #elif args.energy == 'control2d':
+    #    pass
 
     else:
         batch_size = plot_data_size
@@ -273,7 +278,8 @@ def train():
         os.makedirs(name)
 
     energy = get_energy()
-    eval_data = energy.sample(eval_data_size).to(device)
+    if args.energy != "control2d":
+        eval_data = energy.sample(eval_data_size).to(device)
 
     config = args.__dict__
     config["Experiment"] = "{args.energy}"
@@ -305,7 +311,8 @@ def train():
         metrics['train/loss'] = train_step(energy, gfn_model, gfn_optimizer, i, args.exploratory,
                                            buffer, buffer_ls, args.exploration_factor, args.exploration_wd)
         if i % 100 == 0:
-            metrics.update(eval_step(eval_data, energy, gfn_model, final_eval=False))
+            if args.energy != "control2d":
+                metrics.update(eval_step(eval_data, energy, gfn_model, final_eval=False))
             if 'tb-avg' in args.mode_fwd or 'tb-avg' in args.mode_bwd:
                 del metrics['eval/log_Z_learned']
             images = plot_step(energy, gfn_model, name)
