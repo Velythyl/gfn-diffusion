@@ -135,7 +135,7 @@ _LIST_OF_NO_SAMPLES_ENERGIES = ['log_cox']
 if args.pis_architectures:
     args.zero_init = True
 
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+device = "cpu" #torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 coeff_matrix = cal_subtb_coef_matrix(args.subtb_lambda, args.discretizer_traj_length).to(device)
 
 if args.both_ways and args.bwd:
@@ -466,7 +466,7 @@ def train():
         metrics['train/loss'] = train_step(energy, gfn_model, gfn_optimizer, i, args.exploratory,
                                            buffer, buffer_ls, args.exploration_factor, args.exploration_wd)
         
-        if i % 100 == 0:  # todo this logging freq should be an arg
+        if i % 1000 == 0:  # todo this logging freq should be an arg
             if not hasattr(energy, "SAMPLE_DISABLED"):
                 metrics.update(eval_step(eval_data, energy, gfn_model, final_eval=False))
 
