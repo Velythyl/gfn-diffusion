@@ -1,3 +1,5 @@
+import jax.random
+
 from plot_utils import *
 import argparse
 import torch
@@ -32,7 +34,7 @@ parser.add_argument('--subtb_lambda', type=int, default=2)
 parser.add_argument('--t_scale', type=float, default=5.)
 parser.add_argument('--log_var_range', type=float, default=4.)
 parser.add_argument('--energy', type=str, default='control2d',
-                    choices=('9gmm', '25gmm', 'hard_funnel', 'easy_funnel', 'many_well', 'control2d'))
+                    choices=('9gmm', '25gmm', 'hard_funnel', 'easy_funnel', 'many_well', 'control2d', '5gmm', 'four_banana', 'michalewicz', 'rosenbrock', 'rastrigin'))
 parser.add_argument('--mode_fwd', type=str, default="tb", choices=('tb', 'tb-avg', 'db', 'subtb', "pis"))
 parser.add_argument('--mode_bwd', type=str, default="tb", choices=('tb', 'tb-avg', 'mle'))
 parser.add_argument('--both_ways', action='store_true', default=False)
@@ -132,6 +134,16 @@ def get_energy():
         energy = ManyWell(device=device)
     elif args.energy == 'control2d':
         energy = Control2D(device=device)
+    elif args.energy == '5gmm':
+        energy = FiveGaussianMixture(device=device)
+    elif args.energy == 'four_banana':
+        energy = FourBananaMixture(device=device)
+    elif args.energy == 'michalewicz':
+        energy = Michalewicz(device=device)
+    elif args.energy == 'rastrigin':
+        energy = Rastrigin(device=device)
+    elif args.energy == 'rosenbrock':
+        energy = Rosenbrock(device=device)
     return energy
 
 
@@ -158,14 +170,15 @@ def plot_step(energy, gfn_model, name):
                 "visualization/kdex23": wandb.Image(fig_to_image(fig_kde_x23)),
                 "visualization/samplesx13": wandb.Image(fig_to_image(fig_samples_x13)),
                 "visualization/samplesx23": wandb.Image(fig_to_image(fig_samples_x23))}
+    elif args.energy == 'control2d':
+        samples = gfn_model.sample(plot_data_size, energy.log_reward)
+        fig = energy.display(samples)
+        return {"visualization/control2d": wandb.Image(fig_to_image(fig))}
 
     elif energy.data_ndim != 2:
         return {}
 
-    #elif args.energy == 'control2d':
-    #    pass
-
-    else:
+    elif not hasattr(energy, "SAMPLE_DISABLED"):
         batch_size = plot_data_size
         samples = gfn_model.sample(batch_size, energy.log_reward)
         gt_samples = energy.sample(batch_size)
@@ -187,6 +200,8 @@ def plot_step(energy, gfn_model, name):
         return {"visualization/contour": wandb.Image(fig_to_image(fig_contour)),
                 "visualization/kde_overlay": wandb.Image(fig_to_image(fig_kde_overlay)),
                 "visualization/kde": wandb.Image(fig_to_image(fig_kde))}
+    else:
+        return {}
 
 
 def eval_step(eval_data, energy, gfn_model, final_eval=False):
@@ -271,14 +286,61 @@ def bwd_train_step(energy, gfn_model, buffer, buffer_ls, exploration_std=None, i
                                  exploration_std=exploration_std)
     return loss
 
+tpdist = None
+
+def get_jax_eval(args, energy):
+    from tpdist.evalmetrics.metrics_suite import get_eval_metrics
+    from tpdist.machinery.bounds import Bounds
+    filter_bounds = Bounds(min=0, max=100., dim=energy.dim)
+    metrics_from_particles, metrics_from_logprob_model = get_eval_metrics(filter_bounds.expand(),
+                                                                          num_samples_to_use=50_000)  # EvalMetrics_Manager(key, filter_bounds.expand(), num_samples_to_use=params.num_eval_points_to_use)
+    key = torch.randint(0, 1000, size=(1,)).item()
+
+    # get equivalent dist in jax
+    from omegaconf import omegaconf
+    energy_name_jax = {"control2d": "control2d_actions", "four_banana": "four_bananas"}.get(args.energy, args.energy)
+    cfg = omegaconf.OmegaConf.load(f"../../tpdist/config/dist/{energy_name_jax}.yaml")
+    cfg["dim"] = energy.dim
+
+    def get_jax_key():
+        return jax.random.PRNGKey(torch.randint(0, 5000, size=(1,)).item())
+
+    from tpdist.machinery.tp_dist import resolve_tpdist
+    tpdist = resolve_tpdist(cfg.distfam, filter_bounds, cfg).teleport(get_jax_key())
+
+    def set_tpdist_params():
+        dist_params = tpdist.dist_params
+        from torch2jax import j2t, t2j
+        new_params = []
+        for i, param in enumerate(dist_params):
+            param = param.replace(state=t2j(energy.params[i].cpu()))
+            new_params.append(param)
+        return tpdist.replace(dist_params=new_params)
+
+    if args.energy in ["5gmm", "four_banana"]:
+        tpdist = set_tpdist_params()
+
+    def jax_eval(gfn_model):
+        gfn_model.eval()
+        from torch2jax import j2t, t2j
+        samples = t2j(gfn_model.sample(10000, energy.log_reward).cpu())
+        gfn_model.train()
+
+        evalled = metrics_from_particles(get_jax_key(), tpdist, samples)
+        return evalled
+    return jax_eval
+
+jax_eval = None
 
 def train():
+    global jax_eval
+
     name = get_name(args)
     if not os.path.exists(name):
         os.makedirs(name)
 
     energy = get_energy()
-    if args.energy != "control2d":
+    if not hasattr(energy, "SAMPLE_DISABLED"):
         eval_data = energy.sample(eval_data_size).to(device)
 
     config = args.__dict__
@@ -311,8 +373,16 @@ def train():
         metrics['train/loss'] = train_step(energy, gfn_model, gfn_optimizer, i, args.exploratory,
                                            buffer, buffer_ls, args.exploration_factor, args.exploration_wd)
         if i % 100 == 0:
-            if args.energy != "control2d":
+            if not hasattr(energy, "SAMPLE_DISABLED"):
                 metrics.update(eval_step(eval_data, energy, gfn_model, final_eval=False))
+
+            if args.energy in ["5gmm", "four_banana", "michalewicz", "rastrigin", "rosenbrock"]:
+                if jax_eval is None:
+                    jax_eval = get_jax_eval(args, energy)
+
+                evalled = jax_eval(gfn_model)
+                metrics.update(evalled)
+
             if 'tb-avg' in args.mode_fwd or 'tb-avg' in args.mode_bwd:
                 del metrics['eval/log_Z_learned']
             images = plot_step(energy, gfn_model, name)
@@ -322,7 +392,8 @@ def train():
             if i % 1000 == 0:
                 torch.save(gfn_model.state_dict(), f'{name}model.pt')
 
-    eval_results = final_eval(energy, gfn_model).to(device)
+    if not hasattr(energy, "SAMPLE_DISABLED"):
+        eval_results = final_eval(energy, gfn_model).to(device)
     metrics.update(eval_results)
     if 'tb-avg' in args.mode_fwd or 'tb-avg' in args.mode_bwd:
         del metrics['eval/log_Z_learned']

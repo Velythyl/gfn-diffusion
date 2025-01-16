@@ -9,6 +9,42 @@ def nll_unit_gaussian(data, sigma=1.0):
     loss = 0.5 * np.log(2 * np.pi) + np.log(sigma) + 0.5 * data * data / (sigma ** 2)
     return torch.sum(torch.flatten(loss, start_dim=1), -1)
 
+import torch
+
+def find_density_minmax(density, dim, min_param, max_param):
+    ALL_SCORES = torch.zeros((100, 1_000_000))
+
+    for i in range(100):
+        if i == 0 and dim == 2:
+            tX = torch.arange(0, 10, 0.01, device=density.device) * max_param / 10
+            tY = torch.arange(0, 10, 0.01, device=density.device) * max_param / 10
+            tX, tY = torch.meshgrid(tX, tY)
+            tX = torch.stack((tX, tY), axis=-1).reshape((tX.shape[0] * tY.shape[1], 2))
+        else:
+            tX = torch.rand((1_000_000, dim), device=density.device) * max_param
+        tX = tX.clip(min_param, max_param)
+        tZ = torch.vmap(density.score)(tX)
+
+        ALL_SCORES[i] = tZ
+
+    ALL_SCORES = ALL_SCORES.flatten()
+
+    ret = {
+        "min": ALL_SCORES.min(),
+        #"1%": torch.quantile(ALL_SCORES, 0.01),
+        #"10%": torch.quantile(ALL_SCORES, 0.1),
+        #"50%": torch.quantile(ALL_SCORES, 0.5),
+        #"90%": torch.quantile(ALL_SCORES, 0.9),
+        "max": ALL_SCORES.max()
+    }
+
+    return ret
+
+def recenter(particle, min_param, max_param):
+    # recenter to [0,1] because it empirically gives nice RND values
+    particle = (particle - min_param) / (max_param - min_param)
+    return particle
+
 
 class BaseSet(abc.ABC, Dataset):
     def __init__(self, len_data=-2333):
