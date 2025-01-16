@@ -51,8 +51,23 @@ def gaussian_params(tensor):
 def fig_to_image(fig):
     fig.canvas.draw()
 
+    bytes = None
+    try:
+        bytes = fig.canvas.tostring_rgb()
+    except:
+        bytes = fig.canvas.tostring_argb()
+        # Convert ARGB to a NumPy array
+        height, width = fig.canvas.get_width_height()
+        argb_array = np.frombuffer(bytes, dtype=np.uint8).reshape((height, width, 4))
+
+        # Rearrange ARGB to RGB: Drop the alpha channel
+        rgb_array = argb_array[:, :, 1:]  # Slice to keep only red, green, blue channels
+
+        # Optional: Convert back to bytes if needed
+        bytes = rgb_array.tobytes()
+
     return PIL.Image.frombytes(
-        "RGB", fig.canvas.get_width_height(), fig.canvas.tostring_rgb()
+        "RGB", fig.canvas.get_width_height(), bytes
     )
 
 

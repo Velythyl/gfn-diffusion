@@ -3,6 +3,12 @@ from .twenty_five_gmm import TwentyFiveGaussianMixture
 from .hard_funnel import HardFunnel
 from .easy_funnel import EasyFunnel
 from .many_well import ManyWell
+from .control2d import Control2D
+from .five_gmm import FiveGaussianMixture
+from .four_banana import FourBananaMixture
+from .michalewicz import Michalewicz
+from .rastrigin import Rastrigin
+from .rosenbrock import Rosenbrock
 from .lgcp import CoxDist
 from .breast_cancer import BreastCancer
 from .german_credit import GermanCredit
