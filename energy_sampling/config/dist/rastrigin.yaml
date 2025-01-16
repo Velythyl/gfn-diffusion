@@ -3,4 +3,4 @@
 distfam: rastrigin
 min: 0
 max: 100 # 10.24
-dim: 2
+dim: 10
