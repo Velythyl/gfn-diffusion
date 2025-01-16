@@ -1,3 +1,6 @@
+import pathlib
+import sys
+
 import jax.random
 
 from plot_utils import *
@@ -98,7 +101,7 @@ parser.add_argument('--seed', type=int, default=12345)
 parser.add_argument('--weight_decay', type=float, default=1e-7)
 parser.add_argument('--use_weight_decay', action='store_true', default=False)
 parser.add_argument('--eval', action='store_true', default=False)
-parser.add_argument('--discretizer', type=str, default="random",
+parser.add_argument('--discretizer', type=str, default="adaptive",
                     choices=('random', 'uniform', 'low_discrepancy', 'low_discrepancy2', 'equidistant', 'adaptive'))
 parser.add_argument('--discretizer_max_ratio', type=float, default=10.0)
 parser.add_argument('--discretizer_traj_length', type=int, default=100)
@@ -131,7 +134,7 @@ _LIST_OF_NO_SAMPLES_ENERGIES = ['log_cox']
 if args.pis_architectures:
     args.zero_init = True
 
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+device = "cpu" #torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 coeff_matrix = cal_subtb_coef_matrix(args.subtb_lambda, args.discretizer_traj_length).to(device)
 
 if args.both_ways and args.bwd:
@@ -197,7 +200,7 @@ def plot_step(energy, gfn_model, name):
                 "visualization/samplesx13": wandb.Image(fig_to_image(fig_samples_x13)),
                 "visualization/samplesx23": wandb.Image(fig_to_image(fig_samples_x23))}
     elif args.energy == 'control2d':
-        samples = gfn_model.sample(plot_data_size, energy.log_reward)
+        samples = gfn_model.sample(plot_data_size, lambda bsz: uniform_discretizer(bsz, args.T), energy.log_reward)
         fig = energy.display(samples)
         return {"visualization/control2d": wandb.Image(fig_to_image(fig))}
 
@@ -261,7 +264,7 @@ def eval_step(eval_data, energy, gfn_model, final_eval=False):
     gfn_model.train()
     return metrics
 
-def eval_step_K_step_discretizer(eval_data, energy, gfn_model, final_eval=False, traj_length=None):
+def eval_step_K_step_discretizer(energy, gfn_model, final_eval=False, traj_length=None):
     gfn_model.eval()
     metrics = dict()
     if traj_length is None:
@@ -363,7 +366,8 @@ def bwd_train_step(energy, gfn_model, buffer, buffer_ls, discretizer, exploratio
     return loss
 
 tpdist = None
-
+sys.path.append(str(pathlib.Path(__file__).parent.parent.parent.resolve()))
+#sys.path.append(str(pathlib.Path(__file__).parent.parent.resolve())+"/")
 def get_jax_eval(args, energy):
     from tpdist.evalmetrics.metrics_suite import get_eval_metrics
     from tpdist.machinery.bounds import Bounds
@@ -396,17 +400,22 @@ def get_jax_eval(args, energy):
     if args.energy in ["5gmm", "four_banana"]:
         tpdist = set_tpdist_params()
 
+
     def jax_eval(gfn_model):
         gfn_model.eval()
         from torch2jax import j2t, t2j
-        samples = t2j(gfn_model.sample(10000, energy.log_reward).cpu())
+        samples = t2j(gfn_model.sample(10000, lambda bsz: uniform_discretizer(bsz, args.T), energy.log_reward).cpu())
         gfn_model.train()
 
         evalled = metrics_from_particles(get_jax_key(), tpdist, samples)
+        CSV_BUILDER.log(evalled)
         return evalled
     return jax_eval
 
 jax_eval = None
+from tpdist.utils.wandbcsv import WANDB_CSV
+CSV_BUILDER = WANDB_CSV()
+
 
 def train():
     global jax_eval
@@ -463,7 +472,7 @@ def train():
             if 'tb-avg' in args.mode_fwd or 'tb-avg' in args.mode_bwd:
                 del metrics['eval/log_Z_learned']
 
-            metrics.update(eval_step_K_step_discretizer(eval_data, energy, gfn_model, final_eval=False))
+            metrics.update(eval_step_K_step_discretizer(energy, gfn_model, final_eval=False))
             # if 'tb-avg' in args.mode_fwd or 'tb-avg' in args.mode_bwd:
             #     del metrics[f'eval_{args.discretizer_traj_length}_steps/log_Z_learned']
 
@@ -473,6 +482,13 @@ def train():
             wandb.log(metrics, step=i)
             if i % 1000 == 0:
                 torch.save(gfn_model.state_dict(), f'{name}model.pt')
+
+    path = f"{wandb.run.dir}/gfndiffusion_{args.seed}.csv"
+    from tpdist.utils.wandbcsv import save_pd
+    save_pd(path)
+    artifact = wandb.Artifact(name="csv", type="dataset")
+    artifact.add_file(path, name="csv")
+    wandb.log_artifact(artifact)
 
     if not hasattr(energy, "SAMPLE_DISABLED"):
         eval_results = final_eval(energy, gfn_model)
