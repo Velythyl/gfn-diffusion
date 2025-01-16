@@ -1,0 +1,7 @@
+# `half_cheetah` configuration
+
+distfam: control2d_actions
+min: 0
+max: 2
+dim: 100 #50 #130 #386 #4610
+custom_descriptor: True

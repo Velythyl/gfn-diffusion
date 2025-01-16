@@ -1,0 +1,7 @@
+# `half_cheetah` configuration
+
+distfam: multi_mvn
+min: 0
+max: 100
+dim: 2
+num_mvn: 4

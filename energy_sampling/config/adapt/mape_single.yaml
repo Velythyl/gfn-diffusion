@@ -1,0 +1,4 @@
+# `half_cheetah` configuration
+
+adapt_strat: MAP-Elites
+num_gmm: 50

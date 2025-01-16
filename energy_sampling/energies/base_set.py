@@ -2,6 +2,7 @@ import abc
 import torch
 import numpy as np
 from torch.utils.data import Dataset
+from tqdm import tqdm
 
 
 def nll_unit_gaussian(data, sigma=1.0):
@@ -14,7 +15,7 @@ import torch
 def find_density_minmax(density, dim, min_param, max_param):
     ALL_SCORES = torch.zeros((100, 1_000_000))
 
-    for i in range(100):
+    for i in tqdm(range(10)):
         if i == 0 and dim == 2:
             tX = torch.arange(0, 10, 0.01, device=density.device) * max_param / 10
             tY = torch.arange(0, 10, 0.01, device=density.device) * max_param / 10

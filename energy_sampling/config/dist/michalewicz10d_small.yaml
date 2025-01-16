@@ -1,0 +1,6 @@
+# `half_cheetah` configuration
+
+distfam: michalewicz
+min: 0
+max: 3.141592
+dim: 10

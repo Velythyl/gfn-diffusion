@@ -1,0 +1,4 @@
+# `half_cheetah` configuration
+
+adapt_strat: CMA-ME NOMH
+num_gmm: 500

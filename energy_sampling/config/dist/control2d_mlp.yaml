@@ -1,0 +1,7 @@
+# `half_cheetah` configuration
+
+distfam: control2d_mlp
+min: 0
+max: 20
+dim: 50 #50 #130 #386 #4610
+custom_descriptor: False

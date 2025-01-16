@@ -37,8 +37,9 @@ parser.add_argument('--T', type=int, default=100)
 parser.add_argument('--subtb_lambda', type=int, default=2)
 parser.add_argument('--t_scale', type=float, default=5.)
 parser.add_argument('--log_var_range', type=float, default=4.)
-parser.add_argument('--energy', type=str, default='control2d',
-                    choices=('9gmm', '25gmm', 'hard_funnel', 'easy_funnel', 'many_well', 'control2d', '5gmm', 'four_banana', 'michalewicz', 'rosenbrock', 'rastrigin', 'log_cox', 'cancer', 'credit'))
+parser.add_argument('--energy', type=str, default='control2d_actions',
+                    choices=('9gmm', '25gmm', 'hard_funnel', 'easy_funnel', 'many_well', 'control2d_actions', 'five_mvn', 'four_bananas', 'michalewicz', 'rosenbrock', 'rastrigin', 'log_cox', 'cancer', 'credit'))
+parser.add_argument("--energy_dim", type=int, default=None)
 parser.add_argument('--mode_fwd', type=str, default="tb", choices=('tb', 'tb-avg', 'db', 'subtb', "pis"))
 parser.add_argument('--mode_bwd', type=str, default="tb", choices=('tb', 'tb-avg', 'mle'))
 parser.add_argument('--both_ways', action='store_true', default=False)
@@ -101,13 +102,13 @@ parser.add_argument('--seed', type=int, default=12345)
 parser.add_argument('--weight_decay', type=float, default=1e-7)
 parser.add_argument('--use_weight_decay', action='store_true', default=False)
 parser.add_argument('--eval', action='store_true', default=False)
-parser.add_argument('--discretizer', type=str, default="adaptive",
+parser.add_argument('--discretizer', type=str, default="uniform",
                     choices=('random', 'uniform', 'low_discrepancy', 'low_discrepancy2', 'equidistant', 'adaptive'))
 parser.add_argument('--discretizer_max_ratio', type=float, default=10.0)
 parser.add_argument('--discretizer_traj_length', type=int, default=100)
 parser.add_argument('--traj_length_strategy', type=str, default="static", choices=('static', 'dynamic'))
 parser.add_argument('--min_traj_length', type=int, default=10)
-parser.add_argument('--max_traj_length', type=int, default=100)
+parser.add_argument('--max_traj_length', type=int, default=200)
 parser.add_argument('--use_prior', action='store_true', default=False)
 parser.add_argument('--prior_scale', type=float, default=10.0)
 args = parser.parse_args()
@@ -134,7 +135,7 @@ _LIST_OF_NO_SAMPLES_ENERGIES = ['log_cox']
 if args.pis_architectures:
     args.zero_init = True
 
-device = "cpu" #torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 coeff_matrix = cal_subtb_coef_matrix(args.subtb_lambda, args.discretizer_traj_length).to(device)
 
 if args.both_ways and args.bwd:
@@ -145,6 +146,8 @@ if args.local_search:
 
 
 def get_energy():
+    dim = args.energy_dim
+
     if args.energy == '9gmm':
         energy = NineGaussianMixture(device=device)
     elif args.energy == '25gmm':
@@ -155,18 +158,18 @@ def get_energy():
         energy = EasyFunnel(device=device)
     elif args.energy == 'many_well':
         energy = ManyWell(device=device)
-    elif args.energy == 'control2d':
+    elif args.energy == 'control2d_actions':
         energy = Control2D(device=device)
-    elif args.energy == '5gmm':
-        energy = FiveGaussianMixture(device=device)
-    elif args.energy == 'four_banana':
+    elif args.energy == 'five_mvn':
+        energy = FiveGaussianMixture(device=device) if dim is None else FiveGaussianMixture(device=device, dim=dim)
+    elif args.energy == 'four_bananas':
         energy = FourBananaMixture(device=device)
     elif args.energy == 'michalewicz':
-        energy = Michalewicz(device=device)
+        energy = Michalewicz(device=device) if dim is None else Michalewicz(device=device, dim=dim)
     elif args.energy == 'rastrigin':
-        energy = Rastrigin(device=device)
+        energy = Rastrigin(device=device)  if dim is None else  Rastrigin(device=device, dim=dim)
     elif args.energy == 'rosenbrock':
-        energy = Rosenbrock(device=device)
+        energy = Rosenbrock(device=device)  if dim is None else  Rosenbrock(device=device, dim=dim)
     elif args.energy == 'log_cox':
         energy = CoxDist(device=device)
     elif args.energy == 'cancer':
@@ -199,10 +202,10 @@ def plot_step(energy, gfn_model, name):
                 "visualization/kdex23": wandb.Image(fig_to_image(fig_kde_x23)),
                 "visualization/samplesx13": wandb.Image(fig_to_image(fig_samples_x13)),
                 "visualization/samplesx23": wandb.Image(fig_to_image(fig_samples_x23))}
-    elif args.energy == 'control2d':
+    elif args.energy == 'control2d_actions':
         samples = gfn_model.sample(plot_data_size, lambda bsz: uniform_discretizer(bsz, args.T), energy.log_reward)
         fig = energy.display(samples)
-        return {"visualization/control2d": wandb.Image(fig_to_image(fig))}
+        return {"visualization/control2d_actions": wandb.Image(fig_to_image(fig))}
 
     elif energy.data_ndim != 2:
         return {}
@@ -378,7 +381,7 @@ def get_jax_eval(args, energy):
 
     # get equivalent dist in jax
     from omegaconf import omegaconf
-    energy_name_jax = {"control2d": "control2d_actions", "four_banana": "four_bananas"}.get(args.energy, args.energy)
+    energy_name_jax = {"control2d_actions": "control2d_actions", "four_banana": "four_bananas"}.get(args.energy, args.energy)
     cfg = omegaconf.OmegaConf.load(f"../../tpdist/config/dist/{energy_name_jax}.yaml")
     cfg["dim"] = energy.dim
 
@@ -408,13 +411,18 @@ def get_jax_eval(args, energy):
         gfn_model.train()
 
         evalled = metrics_from_particles(get_jax_key(), tpdist, samples)
+
+        min, max = samples.min(), samples.max()
+        evalled["metrics/min_sample"] = min
+        evalled["metrics/max_sample"] = max
+
         CSV_BUILDER.log(evalled)
         return evalled
     return jax_eval
 
 jax_eval = None
-from tpdist.utils.wandbcsv import WANDB_CSV
-CSV_BUILDER = WANDB_CSV()
+from tpdist.utils.wandbcsv import init as WANDBCSV_INIT
+CSV_BUILDER = WANDBCSV_INIT(not_wandb=True)
 
 
 def train():
@@ -493,16 +501,17 @@ def train():
     if not hasattr(energy, "SAMPLE_DISABLED"):
         eval_results = final_eval(energy, gfn_model)
 
-    metrics.update(eval_results)
+        metrics.update(eval_results)
     if 'tb-avg' in args.mode_fwd or 'tb-avg' in args.mode_bwd:
         del metrics['eval/log_Z_learned']
 
-    eval_results_K = final_eval_K_steps(energy, gfn_model)
-    metrics.update(eval_results_K)
+    if not hasattr(energy, "SAMPLE_DISABLED"):
+        eval_results_K = final_eval_K_steps(energy, gfn_model)
+        metrics.update(eval_results_K)
     # if 'tb-avg' in args.mode_fwd or 'tb-avg' in args.mode_bwd:
     #     del metrics[f'eval_{args.discretizer_traj_length}_steps/log_Z_learned']
 
-    torch.save(gfn_model.state_dict(), f'{name}model_final.pt')
+    #torch.save(gfn_model.state_dict(), f'{name}model_final.pt')
 
 
 def final_eval(energy, gfn_model):

@@ -1,0 +1,5 @@
+# `half_cheetah` configuration
+
+adapt_strat: CMA-ME
+num_gmm: 25
+use_opt: False

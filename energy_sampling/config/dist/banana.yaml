@@ -1,0 +1,6 @@
+# `half_cheetah` configuration
+
+distfam: banana
+min: 0
+max: 30
+dim: 2

@@ -1,0 +1,6 @@
+# `half_cheetah` configuration
+
+distfam: mvn
+min: 0
+max: 1000
+dim: 10

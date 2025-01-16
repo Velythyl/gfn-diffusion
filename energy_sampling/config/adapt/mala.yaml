@@ -1,0 +1,4 @@
+# `half_cheetah` configuration
+
+adapt_strat: MALA
+w_lr: 0.3

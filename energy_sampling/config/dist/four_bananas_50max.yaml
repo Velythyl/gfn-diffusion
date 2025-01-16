@@ -1,0 +1,7 @@
+# `half_cheetah` configuration
+
+distfam: multi_dist
+multi_distfam: banana, banana, banana, banana
+min: 0
+max: 50
+dim: 2

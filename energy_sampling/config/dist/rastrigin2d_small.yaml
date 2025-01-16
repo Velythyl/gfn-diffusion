@@ -1,0 +1,6 @@
+# `half_cheetah` configuration
+
+distfam: rastrigin
+min: 0
+max: 10.24
+dim: 2

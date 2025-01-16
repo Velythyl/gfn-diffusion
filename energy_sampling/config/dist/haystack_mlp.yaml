@@ -1,0 +1,6 @@
+# `half_cheetah` configuration
+
+distfam: haystack_mlp
+min: 0
+max: 1
+dim: 688 #76 #216 #688

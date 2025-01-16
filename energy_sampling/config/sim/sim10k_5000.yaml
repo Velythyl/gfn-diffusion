@@ -1,0 +1,15 @@
+# `half_cheetah` configuration
+
+num_sim_steps: 10000
+teleportation_freq: 100002000
+
+popsize: 5000
+prop_cmaes: 0.05
+
+num_slices_to_use_for_eval: 1 # todo
+num_eval_points_to_use: 100_000
+
+bad_init: False
+do_plots: False
+
+plot_freq: 1 # plot every n steps

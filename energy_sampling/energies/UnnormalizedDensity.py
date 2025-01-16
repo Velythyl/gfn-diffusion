@@ -11,8 +11,8 @@ class _UnnormalizedDensity(BaseSet):
     def __init__(self, device, dim=2):
         super().__init__()
         self.device = device
-        self.data = torch.tensor([0.0])
-        self.data_ndim = 2
+        self.data = torch.zeros(dim).to(self.device)
+        self.data_ndim = dim
         self.dim = dim
 
         self.min_param, self.max_param = 0., 100.      # fixme hardcoded for now...
