@@ -422,8 +422,8 @@ def get_jax_eval(args, energy):
     return jax_eval
 
 jax_eval = None
-from tpdist.utils.wandbcsv import init as WANDBCSV_INIT
-CSV_BUILDER = WANDBCSV_INIT(do_wandb=True)
+from tpdist.utils.wandbcsv import init_no_wandb as WANDBCSV_INIT
+CSV_BUILDER = WANDBCSV_INIT()
 
 
 def train():
