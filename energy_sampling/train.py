@@ -498,10 +498,6 @@ def train():
     artifact.add_file(path, name="csv")
     wandb.log_artifact(artifact)
 
-    if not hasattr(energy, "SAMPLE_DISABLED"):
-        eval_results = final_eval(energy, gfn_model)
-
-        metrics.update(eval_results)
     if 'tb-avg' in args.mode_fwd or 'tb-avg' in args.mode_bwd:
         del metrics['eval/log_Z_learned']
 

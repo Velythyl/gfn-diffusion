@@ -17,9 +17,9 @@ setup:
   - "export CPATH=$CPATH:$HOME/cudnn86/include"
   - 'export WANDB_API_KEY="afe8f40c99e87c32058996ac31bf96e400ea7cc6"'
   - 'export DISKCACHE_DIR=${oc.env:SCRATCH}/diskcache'
-  - "module load python/3.9"
+  - "module load python/3.10"
   - "module load cuda/11.8"
-  - "source $HOME/mbrma/venv/bin/activate"
+  - "source $HOME/mbrma/venv310/bin/activate"
 
 #  python3.9 -m pip install --upgrade "jaxlib==0.4.13+cuda11.cudnn86" "jax[cuda11_pip]==0.4.13" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html --no-cache
 # pip3 install -r requirements.txt

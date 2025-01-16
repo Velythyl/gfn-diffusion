@@ -1,6 +1,6 @@
 defaults:
   - wandb: wandb
   - adapt: gfn_diffusion
-  - dist: rastrigin
+  - dist: five_mvn
   - sim: sim1k_1000 #_2d
 
