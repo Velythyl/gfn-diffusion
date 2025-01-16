@@ -111,6 +111,7 @@ parser.add_argument('--min_traj_length', type=int, default=10)
 parser.add_argument('--max_traj_length', type=int, default=200)
 parser.add_argument('--use_prior', action='store_true', default=False)
 parser.add_argument('--prior_scale', type=float, default=10.0)
+parser.add_argument('--wandb_name', type=str, default="GFN Energy")
 args = parser.parse_args()
 
 set_seed(args.seed)
@@ -422,7 +423,7 @@ def get_jax_eval(args, energy):
 
 jax_eval = None
 from tpdist.utils.wandbcsv import init as WANDBCSV_INIT
-CSV_BUILDER = WANDBCSV_INIT(not_wandb=True)
+CSV_BUILDER = WANDBCSV_INIT(do_wandb=True)
 
 
 def train():
@@ -438,7 +439,7 @@ def train():
 
     config = args.__dict__
     config["Experiment"] = "{args.energy}"
-    wandb.init(project="GFN Energy", config=config, name=name)
+    wandb.init(project=args.wandb_name, config=config, name=name)
 
     gfn_model = GFN(energy.data_ndim, args.s_emb_dim, args.hidden_dim, args.harmonics_dim, args.t_emb_dim,
                     clipping=args.clipping, lgv_clip=args.lgv_clip, gfn_clip=args.gfn_clip,
