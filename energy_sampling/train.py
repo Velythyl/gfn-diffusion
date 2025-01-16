@@ -5,8 +5,9 @@ import argparse
 import torch
 import os
 
-from utils import set_seed, cal_subtb_coef_matrix, fig_to_image, get_gfn_optimizer, get_gfn_forward_loss, \
-    get_gfn_backward_loss, get_exploration_std, get_name
+from utils import (set_seed, cal_subtb_coef_matrix, fig_to_image, get_gfn_optimizer, get_gfn_forward_loss, \
+    get_gfn_backward_loss, get_exploration_std, get_name, uniform_discretizer, random_discretizer,
+                   low_discrepancy_discretizer, low_discrepancy_discretizer2, shifted_equidistant)
 from buffer import ReplayBuffer
 from langevin import langevin_dynamics
 from models import GFN
@@ -34,7 +35,7 @@ parser.add_argument('--subtb_lambda', type=int, default=2)
 parser.add_argument('--t_scale', type=float, default=5.)
 parser.add_argument('--log_var_range', type=float, default=4.)
 parser.add_argument('--energy', type=str, default='control2d',
-                    choices=('9gmm', '25gmm', 'hard_funnel', 'easy_funnel', 'many_well', 'control2d', '5gmm', 'four_banana', 'michalewicz', 'rosenbrock', 'rastrigin'))
+                    choices=('9gmm', '25gmm', 'hard_funnel', 'easy_funnel', 'many_well', 'control2d', '5gmm', 'four_banana', 'michalewicz', 'rosenbrock', 'rastrigin', 'log_cox', 'cancer', 'credit'))
 parser.add_argument('--mode_fwd', type=str, default="tb", choices=('tb', 'tb-avg', 'db', 'subtb', "pis"))
 parser.add_argument('--mode_bwd', type=str, default="tb", choices=('tb', 'tb-avg', 'mle'))
 parser.add_argument('--both_ways', action='store_true', default=False)
@@ -97,6 +98,15 @@ parser.add_argument('--seed', type=int, default=12345)
 parser.add_argument('--weight_decay', type=float, default=1e-7)
 parser.add_argument('--use_weight_decay', action='store_true', default=False)
 parser.add_argument('--eval', action='store_true', default=False)
+parser.add_argument('--discretizer', type=str, default="random",
+                    choices=('random', 'uniform', 'low_discrepancy', 'low_discrepancy2', 'equidistant', 'adaptive'))
+parser.add_argument('--discretizer_max_ratio', type=float, default=10.0)
+parser.add_argument('--discretizer_traj_length', type=int, default=100)
+parser.add_argument('--traj_length_strategy', type=str, default="static", choices=('static', 'dynamic'))
+parser.add_argument('--min_traj_length', type=int, default=10)
+parser.add_argument('--max_traj_length', type=int, default=100)
+parser.add_argument('--use_prior', action='store_true', default=False)
+parser.add_argument('--prior_scale', type=float, default=10.0)
 args = parser.parse_args()
 
 set_seed(args.seed)
@@ -105,14 +115,24 @@ if 'SLURM_PROCID' in os.environ:
 
 eval_data_size = 2000
 final_eval_data_size = 2000
+# eval_data_size = 10000
+# final_eval_data_size = 10000
+if args.energy == 'cancer':
+    eval_data_size = 10080
+    final_eval_data_size = 10080
+if args.energy == 'credit':
+    eval_data_size = 10000
+    final_eval_data_size = 10000
 plot_data_size = 2000
 final_plot_data_size = 2000
+
+_LIST_OF_NO_SAMPLES_ENERGIES = ['log_cox']
 
 if args.pis_architectures:
     args.zero_init = True
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-coeff_matrix = cal_subtb_coef_matrix(args.subtb_lambda, args.T).to(device)
+coeff_matrix = cal_subtb_coef_matrix(args.subtb_lambda, args.discretizer_traj_length).to(device)
 
 if args.both_ways and args.bwd:
     args.bwd = False
@@ -144,13 +164,19 @@ def get_energy():
         energy = Rastrigin(device=device)
     elif args.energy == 'rosenbrock':
         energy = Rosenbrock(device=device)
+    elif args.energy == 'log_cox':
+        energy = CoxDist(device=device)
+    elif args.energy == 'cancer':
+        energy = BreastCancer(use_prior=args.use_prior, prior_scale=args.prior_scale, device=device)
+    elif args.energy == 'credit':
+        energy = GermanCredit(use_prior=args.use_prior, prior_scale=args.prior_scale, device=device)
     return energy
 
 
 def plot_step(energy, gfn_model, name):
     if args.energy == 'many_well':
         batch_size = plot_data_size
-        samples = gfn_model.sample(batch_size, energy.log_reward)
+        samples = gfn_model.sample(batch_size, lambda bsz: uniform_discretizer(bsz, args.T), energy.log_reward)
 
         vizualizations = viz_many_well(energy, samples)
         fig_samples_x13, ax_samples_x13, fig_kde_x13, ax_kde_x13, fig_contour_x13, ax_contour_x13, fig_samples_x23, ax_samples_x23, fig_kde_x23, ax_kde_x23, fig_contour_x23, ax_contour_x23 = vizualizations
@@ -180,7 +206,7 @@ def plot_step(energy, gfn_model, name):
 
     elif not hasattr(energy, "SAMPLE_DISABLED"):
         batch_size = plot_data_size
-        samples = gfn_model.sample(batch_size, energy.log_reward)
+        samples = gfn_model.sample(batch_size, lambda bsz: uniform_discretizer(bsz, args.T), energy.log_reward)
         gt_samples = energy.sample(batch_size)
 
         fig_contour, ax_contour = get_figure(bounds=(-13., 13.))
@@ -211,12 +237,12 @@ def eval_step(eval_data, energy, gfn_model, final_eval=False):
         init_state = torch.zeros(final_eval_data_size, energy.data_ndim).to(device)
         samples, metrics['final_eval/log_Z'], metrics['final_eval/log_Z_lb'], metrics[
             'final_eval/log_Z_learned'] = log_partition_function(
-            init_state, gfn_model, energy.log_reward)
+            init_state, gfn_model, lambda bsz: uniform_discretizer(bsz, args.T), energy.log_reward)
     else:
         init_state = torch.zeros(eval_data_size, energy.data_ndim).to(device)
         samples, metrics['eval/log_Z'], metrics['eval/log_Z_lb'], metrics[
             'eval/log_Z_learned'] = log_partition_function(
-            init_state, gfn_model, energy.log_reward)
+            init_state, gfn_model, lambda bsz: uniform_discretizer(bsz, args.T), energy.log_reward)
     if eval_data is None:
         log_elbo = None
         sample_based_metrics = None
@@ -224,12 +250,47 @@ def eval_step(eval_data, energy, gfn_model, final_eval=False):
         if final_eval:
             metrics['final_eval/mean_log_likelihood'] = 0. if args.mode_fwd == 'pis' else mean_log_likelihood(eval_data,
                                                                                                               gfn_model,
+                                                                                                              lambda bsz: uniform_discretizer(bsz, args.T),
                                                                                                               energy.log_reward)
         else:
             metrics['eval/mean_log_likelihood'] = 0. if args.mode_fwd == 'pis' else mean_log_likelihood(eval_data,
                                                                                                         gfn_model,
+                                                                                                        lambda bsz: uniform_discretizer(bsz, args.T),
                                                                                                         energy.log_reward)
         metrics.update(get_sample_metrics(samples, eval_data, final_eval))
+    gfn_model.train()
+    return metrics
+
+def eval_step_K_step_discretizer(eval_data, energy, gfn_model, final_eval=False, traj_length=None):
+    gfn_model.eval()
+    metrics = dict()
+    if traj_length is None:
+        traj_length = args.discretizer_traj_length
+    if final_eval:
+        init_state = torch.zeros(final_eval_data_size, energy.data_ndim).to(device)
+        samples, metrics[f'final_eval_{traj_length}_steps/log_Z'], metrics[f'final_eval_{traj_length}_steps/log_Z_lb'], _ \
+            = log_partition_function(
+            init_state, gfn_model, lambda bsz: uniform_discretizer(bsz, traj_length), energy.log_reward)
+    else:
+        init_state = torch.zeros(eval_data_size, energy.data_ndim).to(device)
+        samples, metrics[f'eval_{traj_length}_steps/log_Z'], metrics[f'eval_{traj_length}_steps/log_Z_lb'], _ \
+            = log_partition_function(
+            init_state, gfn_model, lambda bsz: uniform_discretizer(bsz, traj_length), energy.log_reward)
+    # if eval_data is None:
+    #     log_elbo = None
+    #     sample_based_metrics = None
+    # else:
+    #     if final_eval:
+    #         metrics[f'final_eval_{args.discretizer_traj_length}_steps/mean_log_likelihood'] = 0. if args.mode_fwd == 'pis' else mean_log_likelihood(eval_data,
+    #                                                                                                           gfn_model,
+    #                                                                                                           lambda bsz: uniform_discretizer(bsz, traj_length),
+    #                                                                                                           energy.log_reward)
+    #     else:
+    #         metrics[f'eval_{args.discretizer_traj_length}_steps/mean_log_likelihood'] = 0. if args.mode_fwd == 'pis' else mean_log_likelihood(eval_data,
+    #                                                                                                     gfn_model,
+    #                                                                                                     lambda bsz: uniform_discretizer(bsz, traj_length),
+    #                                                                                                     energy.log_reward)
+    #     metrics.update(get_sample_metrics(samples, eval_data, final_eval, K=traj_length))
     gfn_model.train()
     return metrics
 
@@ -237,36 +298,51 @@ def eval_step(eval_data, energy, gfn_model, final_eval=False):
 def train_step(energy, gfn_model, gfn_optimizer, it, exploratory, buffer, buffer_ls, exploration_factor, exploration_wd):
     gfn_model.zero_grad()
 
+    # discretizer = lambda bsz: uniform_discretizer(bsz, args.T)
+    # discretizer = lambda bsz: uniform_discretizer(bsz, np.random.randint(10,args.T+1))
+    # discretizer = lambda bsz: random_discretizer(bsz, args.T, 10)
+    traj_length = args.discretizer_traj_length if args.traj_length_strategy == 'static' \
+        else np.random.randint(low=args.min_traj_length, high=args.max_traj_length+1)
+    if args.discretizer == 'random':
+        discretizer = lambda bsz: random_discretizer(bsz, traj_length, max_ratio=args.discretizer_max_ratio)
+    elif args.discretizer == 'low_discrepancy':
+        discretizer = lambda bsz: low_discrepancy_discretizer(bsz, traj_length)
+    elif args.discretizer == 'low_discrepancy2':
+        discretizer = lambda bsz: low_discrepancy_discretizer2(bsz, traj_length)
+    elif args.discretizer == 'equidistant':
+        discretizer = lambda bsz: shifted_equidistant(bsz, traj_length)
+    else:
+        discretizer = lambda bsz: uniform_discretizer(bsz, traj_length)
     exploration_std = get_exploration_std(it, exploratory, exploration_factor, exploration_wd)
 
     if args.both_ways:
         if it % 2 == 0:
             if args.sampling == 'buffer':
-                loss, states, _, _, log_r  = fwd_train_step(energy, gfn_model, exploration_std, return_exp=True)
+                loss, states, _, _, log_r  = fwd_train_step(energy, gfn_model, discretizer, exploration_std, return_exp=True)
                 buffer.add(states[:, -1],log_r)
             else:
-                loss = fwd_train_step(energy, gfn_model, exploration_std)
+                loss = fwd_train_step(energy, gfn_model, discretizer, exploration_std)
         else:
-            loss = bwd_train_step(energy, gfn_model, buffer, buffer_ls, exploration_std, it=it)
+            loss = bwd_train_step(energy, gfn_model, buffer, buffer_ls, discretizer, exploration_std, it=it)
 
     elif args.bwd:
-        loss = bwd_train_step(energy, gfn_model, buffer, buffer_ls, exploration_std, it=it)
+        loss = bwd_train_step(energy, gfn_model, buffer, buffer_ls, discretizer, exploration_std, it=it)
     else:
-        loss = fwd_train_step(energy, gfn_model, exploration_std)
+        loss = fwd_train_step(energy, gfn_model, discretizer, exploration_std)
 
     loss.backward()
     gfn_optimizer.step()
     return loss.item()
 
 
-def fwd_train_step(energy, gfn_model, exploration_std, return_exp=False):
+def fwd_train_step(energy, gfn_model, discretizer, exploration_std, return_exp=False):
     init_state = torch.zeros(args.batch_size, energy.data_ndim).to(device)
-    loss = get_gfn_forward_loss(args.mode_fwd, init_state, gfn_model, energy.log_reward, coeff_matrix,
+    loss = get_gfn_forward_loss(args.mode_fwd, init_state, gfn_model, energy.log_reward, coeff_matrix, discretizer,
                                 exploration_std=exploration_std, return_exp=return_exp)
     return loss
 
 
-def bwd_train_step(energy, gfn_model, buffer, buffer_ls, exploration_std=None, it=0):
+def bwd_train_step(energy, gfn_model, buffer, buffer_ls, discretizer, exploration_std=None, it=0):
     if args.sampling == 'sleep_phase':
         samples = gfn_model.sleep_phase_sample(args.batch_size, exploration_std).to(device)
     elif args.sampling == 'energy':
@@ -282,7 +358,7 @@ def bwd_train_step(energy, gfn_model, buffer, buffer_ls, exploration_std=None, i
         else:
             samples, rewards = buffer.sample()
 
-    loss = get_gfn_backward_loss(args.mode_bwd, samples, gfn_model, energy.log_reward,
+    loss = get_gfn_backward_loss(args.mode_bwd, samples, gfn_model, energy.log_reward, discretizer,
                                  exploration_std=exploration_std)
     return loss
 
@@ -341,14 +417,14 @@ def train():
 
     energy = get_energy()
     if not hasattr(energy, "SAMPLE_DISABLED"):
-        eval_data = energy.sample(eval_data_size).to(device)
+        eval_data = energy.sample(eval_data_size).to(device) if not (args.energy in _LIST_OF_NO_SAMPLES_ENERGIES) else None
 
     config = args.__dict__
     config["Experiment"] = "{args.energy}"
     wandb.init(project="GFN Energy", config=config, name=name)
 
     gfn_model = GFN(energy.data_ndim, args.s_emb_dim, args.hidden_dim, args.harmonics_dim, args.t_emb_dim,
-                    trajectory_length=args.T, clipping=args.clipping, lgv_clip=args.lgv_clip, gfn_clip=args.gfn_clip,
+                    clipping=args.clipping, lgv_clip=args.lgv_clip, gfn_clip=args.gfn_clip,
                     langevin=args.langevin, learned_variance=args.learned_variance,
                     partial_energy=args.partial_energy, log_var_range=args.log_var_range,
                     pb_scale_range=args.pb_scale_range,
@@ -372,7 +448,8 @@ def train():
     for i in trange(args.epochs + 1):
         metrics['train/loss'] = train_step(energy, gfn_model, gfn_optimizer, i, args.exploratory,
                                            buffer, buffer_ls, args.exploration_factor, args.exploration_wd)
-        if i % 100 == 0:
+        
+        if i % 100 == 0:  # todo this logging freq should be an arg
             if not hasattr(energy, "SAMPLE_DISABLED"):
                 metrics.update(eval_step(eval_data, energy, gfn_model, final_eval=False))
 
@@ -385,6 +462,11 @@ def train():
 
             if 'tb-avg' in args.mode_fwd or 'tb-avg' in args.mode_bwd:
                 del metrics['eval/log_Z_learned']
+
+            metrics.update(eval_step_K_step_discretizer(eval_data, energy, gfn_model, final_eval=False))
+            # if 'tb-avg' in args.mode_fwd or 'tb-avg' in args.mode_bwd:
+            #     del metrics[f'eval_{args.discretizer_traj_length}_steps/log_Z_learned']
+
             images = plot_step(energy, gfn_model, name)
             metrics.update(images)
             plt.close('all')
@@ -393,21 +475,81 @@ def train():
                 torch.save(gfn_model.state_dict(), f'{name}model.pt')
 
     if not hasattr(energy, "SAMPLE_DISABLED"):
-        eval_results = final_eval(energy, gfn_model).to(device)
+        eval_results = final_eval(energy, gfn_model)
+
     metrics.update(eval_results)
     if 'tb-avg' in args.mode_fwd or 'tb-avg' in args.mode_bwd:
         del metrics['eval/log_Z_learned']
+
+    eval_results_K = final_eval_K_steps(energy, gfn_model)
+    metrics.update(eval_results_K)
+    # if 'tb-avg' in args.mode_fwd or 'tb-avg' in args.mode_bwd:
+    #     del metrics[f'eval_{args.discretizer_traj_length}_steps/log_Z_learned']
+
     torch.save(gfn_model.state_dict(), f'{name}model_final.pt')
 
 
 def final_eval(energy, gfn_model):
-    final_eval_data = energy.sample(final_eval_data_size)
+    final_eval_data = energy.sample(final_eval_data_size).to(device) if not (args.energy in _LIST_OF_NO_SAMPLES_ENERGIES) else None
     results = eval_step(final_eval_data, energy, gfn_model, final_eval=True)
     return results
 
 
+def final_eval_K_steps(energy, gfn_model):
+    final_eval_data = energy.sample(final_eval_data_size).to(device) if not (args.energy in _LIST_OF_NO_SAMPLES_ENERGIES) else None
+    results = eval_step_K_step_discretizer(final_eval_data, energy, gfn_model, final_eval=True)
+    return results
+
+
 def eval():
-    pass
+    name = get_name(args)
+
+    print(name)
+
+    energy = get_energy()
+    eval_data = energy.sample(eval_data_size).to(device) if not (args.energy in _LIST_OF_NO_SAMPLES_ENERGIES) else None
+
+    gfn_model = GFN(energy.data_ndim, args.s_emb_dim, args.hidden_dim, args.harmonics_dim, args.t_emb_dim,
+                    clipping=args.clipping, lgv_clip=args.lgv_clip, gfn_clip=args.gfn_clip,
+                    langevin=args.langevin, learned_variance=args.learned_variance,
+                    partial_energy=args.partial_energy, log_var_range=args.log_var_range,
+                    pb_scale_range=args.pb_scale_range,
+                    t_scale=args.t_scale, langevin_scaling_per_dimension=args.langevin_scaling_per_dimension,
+                    conditional_flow_model=args.conditional_flow_model, learn_pb=args.learn_pb,
+                    pis_architectures=args.pis_architectures, lgv_layers=args.lgv_layers,
+                    joint_layers=args.joint_layers, zero_init=args.zero_init, device=device).to(device)
+
+    model_final_path = name + 'model_final.pt'
+    model_path = name + 'model.pt'
+
+    if os.path.exists(model_final_path):
+        try:
+            gfn_model.load_state_dict(torch.load(model_final_path, weights_only=True))
+        except:
+            print("Couldn't load final model")
+    else:
+        if os.path.exists(model_path):
+            try:
+                gfn_model.load_state_dict(torch.load(model_path, weights_only=True))
+            except:
+                print("Couldn't load model")
+        else:
+            print("NO MODEL IS AVAILABLE")
+            return
+
+    config = args.__dict__
+    config["Experiment"] = "{args.energy}"
+    wandb.init(project="GFN Energy - proper evaluation", config=config, name=name)
+
+    print(gfn_model)
+    metrics = dict()
+
+    gfn_model.eval()
+    for i in trange(1, 201):
+        metrics.update(eval_step_K_step_discretizer(eval_data, energy, gfn_model, final_eval=False, traj_length=i))
+        # if 'tb-avg' in args.mode_fwd or 'tb-avg' in args.mode_bwd:
+        #     del metrics[f'eval_{i}_steps/log_Z_learned']
+    wandb.log(metrics)
 
 
 if __name__ == '__main__':

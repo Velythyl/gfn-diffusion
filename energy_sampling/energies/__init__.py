@@ -9,3 +9,6 @@ from .four_banana import FourBananaMixture
 from .michalewicz import Michalewicz
 from .rastrigin import Rastrigin
 from .rosenbrock import Rosenbrock
+from .lgcp import CoxDist
+from .breast_cancer import BreastCancer
+from .german_credit import GermanCredit
