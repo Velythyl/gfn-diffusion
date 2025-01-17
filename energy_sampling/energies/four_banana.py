@@ -43,6 +43,7 @@ class FourBananaMixture(BaseSet):
         raise NotImplementedError()
 
     def energy(self, x):
+        x = x + 50  # maps -50,50 to 0,100 because GFNDiffusion has a hard time with exploring to 100
         return -self.log_prob(x).flatten()
 
     def sample(self, batch_size):

@@ -19,7 +19,7 @@ def run_gfndiffusion_instead(cfg):
     sys.argv = ["train.py"]  # First argument is the script name
     sys.argv += [f"--energy={distname}", f"--energy_dim={cfg.dist.dim}", f"--seed={cfg.wandb.seed}", f"--wandb_name={cfg.wandb.project}"]  # Add key-value pairs as arguments
     sys.argv += ['--t_scale=1.', '--pis_architectures', '--zero_init', '--clipping',
-     '--gfn_clip=101', '--mode_fwd=tb', '--lr_policy=1e-3', '--lr_back=1e-3', '--lr_flow=1e-1',
+      '--mode_fwd=tb', '--lr_policy=1e-3', '--lr_back=1e-3', '--lr_flow=1e-1',
      '--exploratory', '--exploration_wd', '--exploration_factor=0.1', '--both_ways', '--local_search',
      '--buffer_size=600000', '--prioritized=rank', '--rank_weight=0.01', '--ld_step=0.1', '--ld_schedule',
      '--target_acceptance_rate=0.574']

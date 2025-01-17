@@ -42,6 +42,7 @@ class _UnnormalizedDensity(BaseSet):
         raise NotImplementedError()
 
     def energy(self, x):
+        x = x + 50  # maps -50,50 to 0,100 because GFNDiffusion has a hard time with exploring to 100
         return -self.unnormalized_log_prob(x).flatten()
 
     def sample(self, batch_size):

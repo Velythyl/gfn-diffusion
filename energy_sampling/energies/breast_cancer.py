@@ -72,3 +72,4 @@ class BreastCancer(BaseSet):
         # ind = torch.randint(len(self.samples), (batch_size,))
         # return self.samples[ind, :]
         return self.samples[:batch_size, ...]
+

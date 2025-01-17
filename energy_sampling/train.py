@@ -371,6 +371,8 @@ def bwd_train_step(energy, gfn_model, buffer, buffer_ls, discretizer, exploratio
 
 tpdist = None
 sys.path.append(str(pathlib.Path(__file__).parent.parent.parent.resolve()))
+print(str(pathlib.Path(__file__).parent.parent.parent.resolve()))
+exit()
 #sys.path.append(str(pathlib.Path(__file__).parent.parent.resolve())+"/")
 def get_jax_eval(args, energy):
     from tpdist.evalmetrics.metrics_suite import get_eval_metrics
@@ -401,7 +403,7 @@ def get_jax_eval(args, energy):
             new_params.append(param)
         return tpdist.replace(dist_params=new_params)
 
-    if args.energy in ["5gmm", "four_banana"]:
+    if args.energy in ["five_mvn", "four_bananas"]:
         tpdist = set_tpdist_params()
 
 
@@ -411,11 +413,10 @@ def get_jax_eval(args, energy):
         samples = t2j(gfn_model.sample(10000, lambda bsz: uniform_discretizer(bsz, args.T), energy.log_reward).cpu())
         gfn_model.train()
 
-        evalled = metrics_from_particles(get_jax_key(), tpdist, samples)
+        if args.energy in ["five_mvn", "four_bananas", "rastrigin", "michalewicz", "rosenbrock"]:
+            samples = samples + 50  # maps -50,50 to 0,100 because GFNDiffusion has a hard time with exploring to 100
 
-        min, max = samples.min(), samples.max()
-        evalled["metrics/min_sample"] = min
-        evalled["metrics/max_sample"] = max
+        evalled = metrics_from_particles(get_jax_key(), tpdist, samples)
 
         CSV_BUILDER.log(evalled)
         return evalled
@@ -473,12 +474,20 @@ def train():
             if not hasattr(energy, "SAMPLE_DISABLED"):
                 metrics.update(eval_step(eval_data, energy, gfn_model, final_eval=False))
 
-            if args.energy in ["5gmm", "four_banana", "michalewicz", "rastrigin", "rosenbrock"]:
+            if args.energy in ["five_mvn", "four_bananas", "michalewicz", "rastrigin", "rosenbrock"]:
                 if jax_eval is None:
                     jax_eval = get_jax_eval(args, energy)
 
                 evalled = jax_eval(gfn_model)
                 metrics.update(evalled)
+
+            gfn_model.eval()
+            samples = gfn_model.sample(10000, lambda bsz: uniform_discretizer(bsz, args.T), energy.log_reward).cpu()
+            min, max = samples.min(), samples.max()
+            metrics["metrics/min_sample"] = min
+            metrics["metrics/max_sample"] = max
+            gfn_model.train()
+
 
             if 'tb-avg' in args.mode_fwd or 'tb-avg' in args.mode_bwd:
                 del metrics['eval/log_Z_learned']

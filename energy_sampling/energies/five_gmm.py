@@ -21,6 +21,7 @@ class FiveGaussianMixture(BaseSet):
         mix = D.Categorical(torch.ones(nmode).to(self.device))
         self.gmm = MixtureSameFamily(mix, comp)
         self.data_ndim = dim
+        self.dim = dim
         self.means = mean
 
     @property
@@ -31,6 +32,7 @@ class FiveGaussianMixture(BaseSet):
         return 0.
 
     def energy(self, x):
+        x = x + 50  # maps -50,50 to 0,100 because GFNDiffusion has a hard time with exploring to 100
         return -self.gmm.log_prob(x).flatten()
 
     def sample(self, batch_size):
