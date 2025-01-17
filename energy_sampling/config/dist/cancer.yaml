@@ -1,0 +1,6 @@
+# `half_cheetah` configuration
+
+distfam: cancer
+min: 0
+max: 100 #3.141592
+dim: 31

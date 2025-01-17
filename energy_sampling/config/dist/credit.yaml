@@ -1,0 +1,6 @@
+# `half_cheetah` configuration
+
+distfam: credit
+min: 0
+max: 10 #3.141592
+dim: 25

@@ -369,9 +369,9 @@ def bwd_train_step(energy, gfn_model, buffer, buffer_ls, discretizer, exploratio
                                  exploration_std=exploration_std)
     return loss
 
-sys.path.append(str(pathlib.Path(__file__).parent.parent.parent.resolve()))
-sys.path.append(str(pathlib.Path(__file__).parent.parent.parent.resolve()) + "/tpdist")
-sys.path.append(str(pathlib.Path(__file__).parent.parent.parent.resolve()) + "/tpdist/utils")
+#sys.path.append(str(pathlib.Path(__file__).parent.parent.parent.resolve()))
+#sys.path.append(str(pathlib.Path(__file__).parent.parent.parent.resolve()) + "/tpdist")
+#sys.path.append(str(pathlib.Path(__file__).parent.parent.parent.resolve()) + "/tpdist/utils")
 #print(str(pathlib.Path(__file__).parent.parent.parent.resolve()))
 #exit()
 #sys.path.append(str(pathlib.Path(__file__).parent.parent.resolve())+"/")
@@ -387,7 +387,8 @@ def get_jax_eval(args, energy):
     from omegaconf import omegaconf
     energy_name_jax = {"control2d_actions": "control2d_actions", "four_banana": "four_bananas"}.get(args.energy, args.energy)
     cfg = omegaconf.OmegaConf.load(f"../../tpdist/config/dist/{energy_name_jax}.yaml")
-    cfg["dim"] = energy.dim
+    if args.energy not in ["cancer", "credit"]:
+        cfg["dim"] = energy.dim
 
     def get_jax_key():
         return jax.random.PRNGKey(torch.randint(0, 5000, size=(1,)).item())
@@ -424,10 +425,10 @@ def get_jax_eval(args, energy):
     return jax_eval
 
 jax_eval = None
-from tpdist.utils.wandbcsv import init_no_wandb as WANDBCSV_INIT
 sys.path.append(str(pathlib.Path(__file__).parent.parent.parent.resolve()))
 sys.path.append(str(pathlib.Path(__file__).parent.parent.parent.resolve())+"/tpdist")
 sys.path.append(str(pathlib.Path(__file__).parent.parent.parent.resolve())+"/tpdist/utils")
+from tpdist.utils.wandbcsv import init_no_wandb as WANDBCSV_INIT
 CSV_BUILDER = WANDBCSV_INIT()
 
 
@@ -473,10 +474,10 @@ def train():
                                            buffer, buffer_ls, args.exploration_factor, args.exploration_wd)
         
         if i % 1000 == 0:  # todo this logging freq should be an arg
-            if not hasattr(energy, "SAMPLE_DISABLED"):
+            if False: #not hasattr(energy, "SAMPLE_DISABLED"):
                 metrics.update(eval_step(eval_data, energy, gfn_model, final_eval=False))
 
-            if args.energy in ["five_mvn", "four_bananas", "michalewicz", "rastrigin", "rosenbrock"]:
+            if args.energy in ["five_mvn", "four_bananas", "michalewicz", "rastrigin", "rosenbrock", "cancer", "credit"]:
                 if jax_eval is None:
                     jax_eval = get_jax_eval(args, energy)
 
