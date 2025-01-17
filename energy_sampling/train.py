@@ -369,7 +369,6 @@ def bwd_train_step(energy, gfn_model, buffer, buffer_ls, discretizer, exploratio
                                  exploration_std=exploration_std)
     return loss
 
-tpdist = None
 sys.path.append(str(pathlib.Path(__file__).parent.parent.parent.resolve()))
 sys.path.append(str(pathlib.Path(__file__).parent.parent.parent.resolve()) + "/tpdist")
 sys.path.append(str(pathlib.Path(__file__).parent.parent.parent.resolve()) + "/tpdist/utils")
