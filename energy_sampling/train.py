@@ -425,6 +425,7 @@ def get_jax_eval(args, energy):
 
 jax_eval = None
 from tpdist.utils.wandbcsv import init_no_wandb as WANDBCSV_INIT
+sys.path.append(str(pathlib.Path(__file__).parent.parent.parent.resolve()))
 sys.path.append(str(pathlib.Path(__file__).parent.parent.parent.resolve())+"/tpdist")
 sys.path.append(str(pathlib.Path(__file__).parent.parent.parent.resolve())+"/tpdist/utils")
 CSV_BUILDER = WANDBCSV_INIT()
