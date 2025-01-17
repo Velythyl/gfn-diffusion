@@ -1,3 +1,4 @@
 # `half_cheetah` configuration
 
 adapt_strat: GFN Diffusion
+epochs: 25000

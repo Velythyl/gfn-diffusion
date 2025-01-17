@@ -17,7 +17,7 @@ def run_gfndiffusion_instead(cfg):
         distname = "four_bananas"
 
     sys.argv = ["train.py"]  # First argument is the script name
-    sys.argv += [f"--energy={distname}", f"--energy_dim={cfg.dist.dim}", f"--seed={cfg.wandb.seed}", f"--wandb_name={cfg.wandb.project}"]  # Add key-value pairs as arguments
+    sys.argv += [f"--energy={distname}", f"--energy_dim={cfg.dist.dim}", f"--seed={cfg.wandb.seed}", f"--wandb_name={cfg.wandb.project}", f"--epochs={cfg.adapt.epochs}"]  # Add key-value pairs as arguments
     sys.argv += ['--t_scale=1.', '--pis_architectures', '--zero_init', '--clipping',
       '--mode_fwd=tb', '--lr_policy=1e-3', '--lr_back=1e-3', '--lr_flow=1e-1',
      '--exploratory', '--exploration_wd', '--exploration_factor=0.1', '--both_ways',
