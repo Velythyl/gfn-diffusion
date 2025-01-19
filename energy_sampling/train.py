@@ -415,8 +415,10 @@ def get_jax_eval(args, energy):
         samples = t2j(gfn_model.sample(10000, lambda bsz: uniform_discretizer(bsz, args.T), energy.log_reward).cpu())
         gfn_model.train()
 
-        if args.energy in ["five_mvn", "four_bananas", "rastrigin", "michalewicz", "rosenbrock"]:
+        if args.energy in ["five_mvn", "four_bananas", "rastrigin", "michalewicz", "rosenbrock", "cancer"]:
             samples = samples + 50  # maps -50,50 to 0,100 because GFNDiffusion has a hard time with exploring to 100
+        elif args.energy in ["credit"]:
+            samples = samples + 8
 
         evalled = metrics_from_particles(get_jax_key(), tpdist, samples)
 
