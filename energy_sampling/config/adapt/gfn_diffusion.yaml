@@ -2,3 +2,4 @@
 
 adapt_strat: GFN Diffusion
 epochs: 25000
+t_scale: 1.0

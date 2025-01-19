@@ -102,7 +102,7 @@ parser.add_argument('--seed', type=int, default=12345)
 parser.add_argument('--weight_decay', type=float, default=1e-7)
 parser.add_argument('--use_weight_decay', action='store_true', default=False)
 parser.add_argument('--eval', action='store_true', default=False)
-parser.add_argument('--discretizer', type=str, default="uniform",
+parser.add_argument('--discretizer', type=str, default="random",
                     choices=('random', 'uniform', 'low_discrepancy', 'low_discrepancy2', 'equidistant', 'adaptive'))
 parser.add_argument('--discretizer_max_ratio', type=float, default=10.0)
 parser.add_argument('--discretizer_traj_length', type=int, default=100)
