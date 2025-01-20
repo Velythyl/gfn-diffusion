@@ -2,3 +2,4 @@
 
 adapt_strat: MAP-Elites
 num_gmm: 50
+burn_in: False

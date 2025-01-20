@@ -3,3 +3,4 @@
 adapt_strat: CMA-ME
 num_gmm: 500
 use_opt: False
+burn_in: True

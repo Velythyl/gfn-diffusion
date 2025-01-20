@@ -4,3 +4,4 @@ adapt_strat: CMA-ME
 num_gmm: 5000
 emitter_max_call: None #200
 use_opt: False
+burn_in: False

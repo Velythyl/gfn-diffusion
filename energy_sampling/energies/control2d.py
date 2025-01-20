@@ -98,6 +98,11 @@ class Control2D(BaseSet):
 
         return rewards, trajectories
 
+    def rewards_batch(self, x):
+        scores, _ = self.rollout(x)
+        #scores = scores.sum(axis=1)
+        return scores
+
     def score_batch(self, x):
         scores, _ = self.rollout(x)
         scores = scores.sum(axis=1)

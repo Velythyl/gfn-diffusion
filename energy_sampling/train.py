@@ -486,6 +486,36 @@ def train():
                 evalled = jax_eval(gfn_model)
                 metrics.update(evalled)
 
+            if args.energy in ["control2d_actions"]:
+                gfn_model.eval()
+                samples = gfn_model.sample(10000, lambda bsz: uniform_discretizer(bsz, args.T), energy.log_reward).cpu()
+                gfn_model.train()
+
+                rewards = energy.rewards_batch(samples)
+                metrics["control2d/has_solved"] = (
+                            rewards >= 1).any()  # + jax.random.uniform(rng, (1,), minval=0.1, maxval=0.2)
+                metrics["control2d/avg_on_goal"] = torch.vmap(lambda run: (run >= 1).sum())(rewards).float().mean()
+                metrics["control2d/avg_touched_goal"] = torch.vmap(lambda run: (run >= 1).any())(rewards).float().mean()
+                metrics["control2d/avg_stopped_goal"] = torch.vmap(lambda run: (run[-1] >= 1).any())(rewards).float().mean()
+                metrics["control2d/mean_reward"] = rewards.mean()
+                metrics["control2d/std_reward"] = rewards.std()
+                metrics["control2d/max_reward"] = rewards.max()
+                metrics["control2d/min_reward"] = rewards.min()
+                metrics["control2d/reward_sum_mean"] = torch.vmap(lambda run: run.sum())(rewards).float().mean()
+                metrics["control2d/reward_sum_std"] = torch.vmap(lambda run: run.sum())(rewards).float().std()
+                metrics["control2d/reward_sum_max"] = torch.vmap(lambda run: run.sum())(rewards).float().max()
+                metrics["control2d/reward_sum_min"] = torch.vmap(lambda run: run.sum())(rewards).float().min()
+                metrics["control2d/reward_sum_med"] = torch.median(torch.vmap(lambda run: run.sum())(rewards))
+
+                def nn_diversity(nn_weights):
+                    covmat = torch.cov(nn_weights.T)
+                    normed = torch.linalg.norm(covmat)
+                    return normed
+
+                metrics["control2d/nn_diversity"] = nn_diversity(samples)
+
+
+
             gfn_model.eval()
             samples = gfn_model.sample(10000, lambda bsz: uniform_discretizer(bsz, args.T), energy.log_reward).cpu()
             min, max = samples.min(), samples.max()
