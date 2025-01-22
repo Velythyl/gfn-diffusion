@@ -42,7 +42,7 @@ class Control2D(BaseSet):
         distance_to_goal = torch.linalg.norm(state[:2] - self.goal_pos)
         distance_reward = (self.max_distance_to_goal - distance_to_goal) / self.max_distance_to_goal
 
-        return distance_reward + 100. * self.is_on_goal(state[:2]).float()
+        return distance_reward + 100. * self.is_on_goal(state[:2]) #* (state[-1] > 45).float()
 
     def is_on_goal(self, xy):
         distance_to_goal = torch.linalg.norm(xy - self.goal_pos)
@@ -96,7 +96,7 @@ class Control2D(BaseSet):
             rewards[:, timestep] = reward_of_state
             trajectories[:, timestep] = state
 
-        rewards[:-5] = 0    # todo fixme this is a bad hack; makes only the last 5 steps counr
+        rewards[:,:-5] = 0
 
         return rewards, trajectories
 
