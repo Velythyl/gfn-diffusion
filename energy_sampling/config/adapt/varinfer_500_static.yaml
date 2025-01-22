@@ -3,3 +3,4 @@
 adapt_strat: Variational Inference
 num_gmm: 500
 is_static_sigma: True
+burn_in: True
