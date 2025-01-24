@@ -79,6 +79,7 @@ class Control2D(BaseSet):
 
     def rollout(self, x):
         x = x.reshape(x.shape[0], self.num_timesteps, self.action_dim)
+        x = torch.nan_to_num(x, nan=-torch.inf)
         x = torch.clip(x, -1, 1)
         x[:, :, 1] = x[:, :, 1] / 10
 

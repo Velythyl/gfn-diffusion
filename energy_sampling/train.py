@@ -181,6 +181,9 @@ def get_energy():
 
 
 def plot_step(energy, gfn_model, name):
+    import matplotlib.pyplot as plt
+    plt.close("all")
+
     if args.energy == 'many_well':
         batch_size = plot_data_size
         samples = gfn_model.sample(batch_size, lambda bsz: uniform_discretizer(bsz, args.T), energy.log_reward)
@@ -418,7 +421,7 @@ def get_jax_eval(args, energy):
         if args.energy in ["five_mvn", "four_bananas", "rastrigin", "michalewicz", "rosenbrock", "cancer"]:
             samples = samples + 50  # maps -50,50 to 0,100 because GFNDiffusion has a hard time with exploring to 100
         elif args.energy in ["credit"]:
-            samples = samples + 8
+            samples = samples + 8   # gets removed by jax code later
 
         evalled = metrics_from_particles(get_jax_key(), tpdist, samples)
 
