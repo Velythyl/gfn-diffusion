@@ -383,7 +383,7 @@ def get_jax_eval(args, energy):
     from tpdist.machinery.bounds import Bounds
     filter_bounds = Bounds(min=0, max=100., dim=energy.dim)
     metrics_from_particles, metrics_from_logprob_model = get_eval_metrics(filter_bounds.expand(),
-                                                                          num_samples_to_use=100_000)  # EvalMetrics_Manager(key, filter_bounds.expand(), num_samples_to_use=params.num_eval_points_to_use)
+                                                                          num_samples_to_use=100_000 // 2)  # EvalMetrics_Manager(key, filter_bounds.expand(), num_samples_to_use=params.num_eval_points_to_use)
     key = torch.randint(0, 1000, size=(1,)).item()
 
     # get equivalent dist in jax
