@@ -13,16 +13,10 @@ def nll_unit_gaussian(data, sigma=1.0):
 import torch
 
 def find_density_minmax(density, dim, min_param, max_param):
-    ALL_SCORES = torch.zeros((100, 1_000_000))
+    ALL_SCORES = torch.zeros((100, 50_000))
 
     for i in tqdm(range(10)):
-        if i == 0 and dim == 2:
-            tX = torch.arange(0, 10, 0.01, device=density.device) * max_param / 10
-            tY = torch.arange(0, 10, 0.01, device=density.device) * max_param / 10
-            tX, tY = torch.meshgrid(tX, tY)
-            tX = torch.stack((tX, tY), axis=-1).reshape((tX.shape[0] * tY.shape[1], 2))
-        else:
-            tX = torch.rand((1_000_000, dim), device=density.device) * max_param
+        tX = torch.rand((50_000, dim), device=density.device) * max_param
         tX = tX.clip(min_param, max_param)
         tZ = torch.vmap(density.score)(tX)
 
