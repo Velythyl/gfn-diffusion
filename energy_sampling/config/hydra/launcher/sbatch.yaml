@@ -2,7 +2,7 @@
 partition: long
 _target_: hydra_plugins.hydra_submitit_launcher.submitit_launcher.SlurmLauncher
 cpus_per_task: 6
-mem_gb: 32
+mem_gb: 50
 tasks_per_node: 1
 gres: gpu:1
 submitit_folder: ${hydra.sweep.dir}/submitit/%j
