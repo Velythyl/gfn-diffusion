@@ -32,6 +32,8 @@ class Control2D(BaseSet):
 
         self.SAMPLE_DISABLED = True
 
+        self.compiled_rollout = torch.compile(self.rollout, backend="aot_eager", mode="reduce-overhead")
+
     def gt_logz(self):
         raise NotImplementedError()
 
@@ -102,12 +104,12 @@ class Control2D(BaseSet):
         return rewards, trajectories
 
     def rewards_batch(self, x):
-        scores, _ = self.rollout(x)
+        scores, _ = self.compiled_rollout(x)
         #scores = scores.sum(axis=1)
         return scores
 
     def score_batch(self, x):
-        scores, _ = self.rollout(x)
+        scores, _ = self.compiled_rollout(x)
         scores = scores.sum(axis=1)
         return scores
 
