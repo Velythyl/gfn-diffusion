@@ -114,7 +114,10 @@ class Control2D(BaseSet):
         return scores
 
     def score_batch(self, x):
-        x = x.reshape(x.shape[0], 50, 2)
+        def reshape(_x):
+            _x = _x.reshape(50,2)
+            return _x
+        x = torch.vmap(reshape)(x)
         scores, _ = self.compiled_rollout(x)
         scores[:,:-5] = 0
         return scores
