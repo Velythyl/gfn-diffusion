@@ -1,6 +1,8 @@
+import jax
+from jax2torch import jax2torch
 import numpy as np
 import matplotlib.pyplot as plt
-
+from .control2d_jax import eval_actions
 import torch
 import torch.distributions as D
 from torch.distributions.mixture_same_family import MixtureSameFamily
@@ -32,7 +34,9 @@ class Control2D(BaseSet):
 
         self.SAMPLE_DISABLED = True
 
-        self.compiled_rollout = torch.compile(self.rollout, backend="aot_eager", mode="reduce-overhead")
+        #self.compiled_rollout = torch.compile(self.rollout, backend="aot_eager", mode="reduce-overhead")
+
+        self.compiled_rollout= jax2torch(jax.jit(jax.vmap(eval_actions)))
 
     def gt_logz(self):
         raise NotImplementedError()
@@ -104,17 +108,22 @@ class Control2D(BaseSet):
         return rewards, trajectories
 
     def rewards_batch(self, x):
+        x = x.reshape(x.shape[0], 50, 2)
         scores, _ = self.compiled_rollout(x)
         #scores = scores.sum(axis=1)
         return scores
 
     def score_batch(self, x):
+        x = x.reshape(x.shape[0], 50, 2)
         scores, _ = self.compiled_rollout(x)
-        scores = scores.sum(axis=1)
+        scores[:,:-5] = 0
         return scores
 
     def control2d_log_pdf(self, x):
-        return torch.log(self.score_batch(x) / (5.5 * 101))
+        scores = self.score_batch(x)
+        scores = scores.sum(axis=1)
+        scores = scores.clip(0, 5.5*101)
+        return torch.log(scores / (5.5 * 101))
     
     def sample(self, batch_size):
         raise NotImplementedError()

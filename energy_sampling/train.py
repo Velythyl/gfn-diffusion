@@ -496,7 +496,7 @@ def train():
                     samples = gfn_model.sample(10000, lambda bsz: uniform_discretizer(bsz, args.T), energy.log_reward).cpu()
                     gfn_model.train()
 
-                    rewards = energy.rewards_batch(samples)
+                    rewards = energy.score_batch(samples)
                     metrics["control2d/has_solved"] = (
                                 rewards >= 1).any()  # + jax.random.uniform(rng, (1,), minval=0.1, maxval=0.2)
                     metrics["control2d/avg_on_goal"] = torch.vmap(lambda run: (run >= 1).sum())(rewards).float().mean()
