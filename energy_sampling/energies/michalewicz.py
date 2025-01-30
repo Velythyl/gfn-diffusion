@@ -13,6 +13,15 @@ class Michalewicz(_UnnormalizedDensity):
         self.m = m
         super().__init__(device, dim)
 
+    @property
+    def dimbounds(self, dim):
+        temp = {
+            10: [-6.3356304, -1.1230314e-16]
+        }
+        if dim in temp:
+            return temp[dim]
+        return None
+
     def score(self, x):
         x = x /self.max_param * torch.pi
         x = x.clip(0, torch.pi)

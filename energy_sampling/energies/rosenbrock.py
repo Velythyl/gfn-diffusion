@@ -9,6 +9,16 @@ from .UnnormalizedDensity import _UnnormalizedDensity
 
 
 class Rosenbrock(_UnnormalizedDensity):
+    @property
+    def dimbounds(self, dim):
+        if dim == 2:
+            MIN = 37.251522
+            MAX = 42367.33
+        else:
+            MIN = 10
+            MAX = 42367.33 * 2
+        return MIN, MAX
+
     def __init__(self,device, dim=2, m=10):
         super().__init__(device, dim)
         self.m = m
