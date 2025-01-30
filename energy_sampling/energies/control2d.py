@@ -97,7 +97,7 @@ class Control2D(BaseSet):
             rewards[:, timestep] = reward_of_state
             trajectories[:, timestep] = state
 
-        #rewards[:,:-5] = 0
+        rewards[:,:-5] = 0
 
         return rewards, trajectories
 
