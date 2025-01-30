@@ -1,6 +1,6 @@
 defaults:
   - wandb: wandb
   - adapt: gfn_diffusion
-  - dist: rosenbrock
+  - dist: control2d_actions
   - sim: sim1k_1000 #_2d
 
