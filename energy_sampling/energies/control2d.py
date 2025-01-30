@@ -103,7 +103,7 @@ class Control2D(BaseSet):
             rewards[:, timestep] = reward_of_state
             trajectories[:, timestep] = state
 
-        rewards[:,:-5] = 0
+        rewards[:,:-1] = 0
 
         return rewards, trajectories
 
@@ -119,14 +119,14 @@ class Control2D(BaseSet):
             return _x
         x = torch.vmap(reshape)(x)
         scores, _ = self.compiled_rollout(x)
-        scores[:,:-5] = 0
+        scores[:,:-1] = 0
         return scores
 
     def control2d_log_pdf(self, x):
         scores = self.score_batch(x)
         scores = scores.sum(axis=1)
-        scores = scores.clip(0, 5.5*101)
-        return torch.log(scores / (5.5 * 101))
+        scores = scores.clip(0, 101)
+        return torch.log(scores / ( 101))
     
     def sample(self, batch_size):
         raise NotImplementedError()
