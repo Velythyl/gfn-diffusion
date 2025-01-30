@@ -125,8 +125,8 @@ class Control2D(BaseSet):
     def control2d_log_pdf(self, x):
         scores = self.score_batch(x)
         scores = scores.sum(axis=1)
-        scores = scores.clip(0, 101)
-        return torch.log(scores / ( 101))
+        scores = scores.clip(0.00001, 101)
+        return torch.log(scores / 101) - 0.00001
     
     def sample(self, batch_size):
         raise NotImplementedError()
