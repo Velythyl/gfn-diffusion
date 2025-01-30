@@ -10,7 +10,6 @@ from .UnnormalizedDensity import _UnnormalizedDensity
 
 class Rastrigin(_UnnormalizedDensity):
 
-    @property
     def dimbounds(self, dim):
         if dim == 2:
             return None

@@ -21,12 +21,19 @@ class _UnnormalizedDensity(BaseSet):
 
         self.SAMPLE_DISABLED = True
 
+    def dimbounds(self, dim):
+        raise NotImplementedError()
+
 
     def get_minmax(self):
-        description = find_density_minmax(self, self.dim, 0, 100)
-        MIN = description["min"]
-        MAX = description["max"]
-        return MIN.item(), MAX.item()
+        get = self.dimbounds(self.dim)
+        if get is None:
+
+            description = find_density_minmax(self, self.dim, 0, 100)
+            MIN = description["min"]
+            MAX = description["max"]
+            return MIN.item(), MAX.item()
+        return get
 
     def score(self, x):
         raise NotImplementedError()

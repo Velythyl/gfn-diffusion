@@ -9,7 +9,7 @@ from .UnnormalizedDensity import _UnnormalizedDensity
 
 
 class Rosenbrock(_UnnormalizedDensity):
-    @property
+
     def dimbounds(self, dim):
         if dim == 2:
             MIN = 37.251522

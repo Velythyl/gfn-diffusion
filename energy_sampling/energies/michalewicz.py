@@ -13,7 +13,6 @@ class Michalewicz(_UnnormalizedDensity):
         self.m = m
         super().__init__(device, dim)
 
-    @property
     def dimbounds(self, dim):
         temp = {
             10: [-6.3356304, -1.1230314e-16]
