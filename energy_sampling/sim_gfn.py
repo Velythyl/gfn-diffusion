@@ -21,7 +21,7 @@ def run_gfndiffusion_instead(cfg):
         cfg.wandb.seed = random.randint(0, 20000)
 
     sys.argv = ["train.py"]  # First argument is the script name
-    sys.argv += [f"--energy={distname}", f"--energy_dim={cfg.dist.dim}", f"--seed={cfg.wandb.seed}", f"--wandb_name={cfg.wandb.project}", f"--epochs={cfg.adapt.epochs}", f"--t_scale={cfg.adapt.t_scale}"]  # Add key-value pairs as arguments
+    sys.argv += [f"--energy={distname}", f"--energy_dim={cfg.dist.dim}", f"--seed={cfg.wandb.seed}", f"--wandb_name={cfg.wandb.project}", f"--epochs={cfg.adapt.epochs}", f"--t_scale={cfg.adapt.t_scale}", f"--batch_size={cfg.adapt.batch_size}"]  # Add key-value pairs as arguments
 
     #sys.argv += ['--pis_architectures', '--zero_init', '--clipping', '--mode_fwd=tb', '--lr_policy=1e-3', '--lr_flow=1e-1', '--exploratory', '--exploration_wd', '--exploration_factor=0.2', '--langevin']
 
