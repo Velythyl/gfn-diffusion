@@ -38,6 +38,7 @@ class Control2D(BaseSet):
 
         compiled_rollout= jax2torch(jax.jit(jax.vmap(eval_actions)))
         def _compiled_rollout(x):
+            x = x / 10
             x = x.clip(-1,1)
             def reshape(_x):
                 _x = _x.reshape(50, 2)
