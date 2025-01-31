@@ -1,10 +1,10 @@
 # @package hydra.launcher
 partition: long
 _target_: hydra_plugins.hydra_submitit_launcher.submitit_launcher.SlurmLauncher
-cpus_per_task: 6
+cpus_per_task: 64
 mem_gb: 48
 tasks_per_node: 1
-gres: gpu:1
+#gres: gpu:1
 submitit_folder: ${hydra.sweep.dir}/submitit/%j
 timeout_min: 1440 # 3h : 179
 nodes: 1

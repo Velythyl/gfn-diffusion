@@ -36,7 +36,20 @@ class Control2D(BaseSet):
 
         #self.compiled_rollout = torch.compile(self.rollout, backend="aot_eager", mode="reduce-overhead")
 
-        self.compiled_rollout= jax2torch(jax.jit(jax.vmap(eval_actions)))
+        compiled_rollout= jax2torch(jax.jit(jax.vmap(eval_actions)))
+        def _compiled_rollout(x):
+            x = x.clip(-1,1)
+            def reshape(_x):
+                _x = _x.reshape(50, 2)
+                return _x
+
+            x = torch.vmap(reshape)(x)
+            x[:, :, 1] = x[:,:, 1] / 10
+            rewards, states = compiled_rollout(x)
+
+            rewards[:, :-1] = 0
+            return rewards, states
+        self.compiled_rollout = _compiled_rollout
 
     def gt_logz(self):
         raise NotImplementedError()
@@ -108,18 +121,13 @@ class Control2D(BaseSet):
         return rewards, trajectories
 
     def rewards_batch(self, x):
-        x = x.reshape(x.shape[0], 50, 2)
+        #x = x.reshape(x.shape[0], 50, 2)
         scores, _ = self.compiled_rollout(x)
         #scores = scores.sum(axis=1)
         return scores
 
     def score_batch(self, x):
-        def reshape(_x):
-            _x = _x.reshape(50,2)
-            return _x
-        x = torch.vmap(reshape)(x)
         scores, _ = self.compiled_rollout(x)
-        scores[:,:-1] = 0
         return scores
 
     def control2d_log_pdf(self, x):
@@ -139,7 +147,7 @@ class Control2D(BaseSet):
         return self.data[0]
 
     def display(self, x):
-        rewards, array_states = self.rollout(x)
+        rewards, array_states = self.compiled_rollout(x)
         poses = array_states[:, :, :2]
 
         import matplotlib.pyplot as plt

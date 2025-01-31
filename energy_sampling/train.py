@@ -207,7 +207,7 @@ def plot_step(energy, gfn_model, name):
                 "visualization/samplesx13": wandb.Image(fig_to_image(fig_samples_x13)),
                 "visualization/samplesx23": wandb.Image(fig_to_image(fig_samples_x23))}
     elif args.energy == 'control2d_actions':
-        samples = gfn_model.sample(plot_data_size, lambda bsz: uniform_discretizer(bsz, args.T), energy.log_reward)
+        samples = gfn_model.sample(10000, lambda bsz: uniform_discretizer(bsz, args.T), energy.log_reward)
         fig = energy.display(samples)
         return {"visualization/control2d_actions": wandb.Image(fig_to_image(fig))}
 
